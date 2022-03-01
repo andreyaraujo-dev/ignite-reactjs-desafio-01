@@ -76,21 +76,26 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
         });
       }
       setCart(newCart);
-      localStorage.setItem('@RocketShoes:cart', JSON.stringify(newCart));
     } catch {
-      toast.error('Não foi possível colocar o produto no carrinho.')
+      toast.error('Erro na adição do produto')
     }
   };
 
   const removeProduct = (productId: number) => {
     try {
-      const newCart = cart.filter((product) => {
-        return product.id !== productId;
-      });
-      setCart(newCart);
-      localStorage.setItem('@RocketShoes:cart', JSON.stringify(newCart));
+      const newCart = [...cart];
+      const productIndex = newCart.findIndex(product => product.id === productId);
+      
+      if (productIndex >= 0) {
+        newCart.splice(productIndex, 1);
+        setCart(newCart);
+        return;
+      } else {
+        throw new Error();
+      }
+      
     } catch {
-      toast.error('Não foi possível remover o item do carrinho.');
+      toast.error('Erro na remoção do produto');
     }
   };
 
@@ -99,16 +104,28 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
     amount,
   }: UpdateProductAmount) => {
     try {
-      const cartUpdated = cart.map(product => {
-        if (product.id === productId) {
-          product.amount = amount;
-        }
-        return product;
-      });
-      setCart(cartUpdated);
-      localStorage.setItem('@RocketShoes:cart', JSON.stringify(cartUpdated));
+      if (amount <= 0) {
+        return;
+      }
+
+      const stockAmount = await api.get(`stock/${productId}`).then(response => (response.data.amount));
+      if (stockAmount < amount) {
+        toast.error('Quantidade solicitada fora de estoque');
+        return;
+      }
+
+      const newCart = [...cart];
+      const productExists = newCart.find(product => product.id === productId);
+
+      if (productExists) {
+        productExists.amount = amount;
+        setCart(newCart);
+      } else {
+        throw new Error();
+      }
+
     } catch {
-      toast.error('Não foi possível adicionar mais itens.');
+      toast.error('Erro na alteração de quantidade do produto');
     }
   };
 
