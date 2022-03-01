@@ -1,4 +1,4 @@
-import { createContext, ReactNode, useContext, useState } from 'react';
+import { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import { api } from '../services/api';
 import { Product, Stock } from '../types';
@@ -29,17 +29,52 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
       return JSON.parse(storagedCart);
     }
 
-    return storagedCart;
+    return [];
   });
+
+  const prevCartRef = useRef<Product[]>();
+
+  useEffect(() => {
+    prevCartRef.current = cart;
+  });
+
+  const cartPreviousValue = prevCartRef.current ?? cart;
+
+  useEffect(() => {
+    if (cartPreviousValue != cart) {
+      localStorage.setItem('@RocketShoes:cart', JSON.stringify(cart));
+    }
+  }, [cart]);
 
   const addProduct = async (productId: number) => {
     try {
-      const response = await api.get(`/products/${productId}`);
-      const product = response.data;
       const newCart = [
         ...cart,
-        product,
-      ]; 
+      ];
+
+      const [stockAmount, currentAmount] = ([
+        await api.get(`stock/${productId}`).then(response => (response.data.amount)),
+        newCart.find(product => product.id === productId)?.amount || 0,
+      ]);
+
+      if (stockAmount <= currentAmount) {
+        toast.error('Quantidade solicitada fora de estoque');
+        return;
+      }
+
+      const productExists = newCart.find(product => product.id === productId);
+
+      if (productExists) {
+        productExists.amount = currentAmount + 1;
+      } else {
+        const response = await api.get(`/products/${productId}`);
+        const product = response.data;
+
+        newCart.push({
+          ...product,
+          amount: 1,
+        });
+      }
       setCart(newCart);
       localStorage.setItem('@RocketShoes:cart', JSON.stringify(newCart));
     } catch {
